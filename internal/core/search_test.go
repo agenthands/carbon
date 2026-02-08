@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/agenthands/carbon/internal/config"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"github.com/stretchr/testify/assert"
 )
@@ -19,7 +20,12 @@ func TestSearch(t *testing.T) {
 		Vector: []float32{0.1, 0.2, 0.3},
 	}
 	
-	g := NewGraphiti(mockDriver, &MockLLM{}, mockEmbedder)
+	cfg := &config.Config{
+		Extraction: config.ExtractionPrompts{Nodes: "foo", Edges: "bar"},
+		Deduplication: config.DeduplicationPrompts{Nodes: "baz"},
+		Summary: config.SummaryPrompts{Nodes: "qux"},
+	}
+	g := NewGraphiti(mockDriver, &MockLLM{}, mockEmbedder, cfg)
 	
 	ctx := context.Background()
 	groupID := "test-group"

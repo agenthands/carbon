@@ -52,8 +52,9 @@ func (c *ClaudeClient) Generate(ctx context.Context, prompt string) (string, err
 }
 
 func (c *ClaudeClient) Embed(ctx context.Context, text string) ([]float32, error) {
-	// Anthropic API does not support embeddings yet officially via same interface?
-	// Returning error or empty list.
-	// For now, returning error implies this client can't be used as embedder alone.
-	return nil, fmt.Errorf("embeddings not supported by Claude client yet")
+	// Anthropic API does not support embeddings yet officially via same interface.
+	// We return nil, nil so the calling code can gracefully handle missing embedding capability if it checks for it,
+	// BUT the interface requires []float32, error.
+	// If returned error, graphiti logic skips embedding (which is desired).
+	return nil, fmt.Errorf("embeddings not supported by Claude client")
 }

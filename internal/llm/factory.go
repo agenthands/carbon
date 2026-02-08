@@ -24,7 +24,7 @@ func NewClient(ctx context.Context, cfg config.LLMConfig) (LLMClient, EmbedderCl
 	
 	case "claude":
 		c := NewClaudeClient(cfg.APIKey, cfg.Model, cfg.BaseURL)
-		return c, c, nil
+		return c, nil, nil // Return nil for EmbedderClient so application knows it's not supported
 	
 	case "ollama":
 		c, err := NewOllamaClient(cfg.Model, cfg.BaseURL)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 	
+	"github.com/agenthands/carbon/internal/config"
 	"github.com/agenthands/carbon/internal/core/model"
 	"github.com/stretchr/testify/assert"
 )
@@ -23,7 +24,10 @@ func TestExtractNodes(t *testing.T) {
 		Response: mockJSON,
 	}
 	
-	extractor := NewExtractor(mockLLM)
+	configPrompts := config.ExtractionPrompts{
+		Nodes: "test prompt %s %s",
+	}
+	extractor := NewExtractor(mockLLM, configPrompts)
 	
 	ctx := context.Background()
 	content := "Alice met Bob yesterday."
@@ -55,7 +59,10 @@ func TestExtractEdges(t *testing.T) {
 		Response: mockJSON,
 	}
 	
-	extractor := NewExtractor(mockLLM)
+	configPrompts := config.ExtractionPrompts{
+		Edges: "test prompt %s",
+	}
+	extractor := NewExtractor(mockLLM, configPrompts)
 	ctx := context.Background()
 	
 	// Assuming ExtractedEntity objects are needed as input, creating mocks

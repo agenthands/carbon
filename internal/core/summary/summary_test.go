@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 	
+	"github.com/agenthands/carbon/internal/config"
 	"github.com/agenthands/carbon/internal/core/model"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,7 +19,10 @@ func TestSummarizeNodes(t *testing.T) {
 		Response: mockJSON,
 	}
 	
-	summarizer := NewSummarizer(mockLLM)
+	cfg := config.SummaryPrompts{
+		Nodes: "test prompt %s %s",
+	}
+	summarizer := NewSummarizer(mockLLM, cfg)
 	ctx := context.Background()
 	
 	node := model.EntityNode{

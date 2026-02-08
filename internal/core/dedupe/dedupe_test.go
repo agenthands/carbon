@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 	
+	"github.com/agenthands/carbon/internal/config"
 	"github.com/agenthands/carbon/internal/core/model"
 	"github.com/stretchr/testify/assert"
 )
@@ -24,7 +25,10 @@ func TestDedupeNodes(t *testing.T) {
 		Response: mockJSON,
 	}
 	
-	deduplicator := NewDeduplicator(mockLLM)
+	cfg := config.DeduplicationPrompts{
+		Nodes: "test prompt %s %s",
+	}
+	deduplicator := NewDeduplicator(mockLLM, cfg)
 	ctx := context.Background()
 	
 	newNodes := []model.EntityNode{

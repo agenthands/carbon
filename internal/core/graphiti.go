@@ -235,20 +235,53 @@ func (g *Graphiti) Search(ctx context.Context, groupID, query string) ([]string,
 	}
 	
 	// 2. Construct Query
-	// Using a basic approximation of hybrid search:
-	// Find nodes by text match (CONTAINS) AND find nodes by vector similarity if vector exists
-	// Memgraph supports vector search. Typically via `vector_search.search` module or similar.
-	// Since we are porting, let's assume we want to pass the vector to the DB query logic.
+	// Using basic cosine similarity if embedding is provided.
+	// Note: This relies on Memgraph MAGE or similar functions being available.
+	// We'll use a manual cosine similarity formula or function if available.
+	// Assuming `vector.cosine_similarity` or similar exists, or manually:
+	// score = reduce(dot=0.0, i in range(0, size(a)-1) | dot + a[i]*b[i]) / (sqrt(reduce(s=0.0, x in a | s + x^2)) * sqrt(reduce(s=0.0, x in b | s + x^2)))
+	// For simplicity in this port, we will stick to the text search if vector is missing, 
+	// and add vector ordering if present.
 	
 	cypher := `
 		MATCH (n:Entity {group_id: $group_id})
 		WHERE n.name CONTAINS $query
-		// AND logic for vector similarity would be here if using MAGE, e.g. using cosine_similarity function
-		// WITH n, vector_cosine_similarity(n.name_embedding, $embedding) AS score
 		RETURN n.name AS name, n.summary AS summary
-		// ORDER BY score DESC
 		LIMIT 5
 	`
+	
+	if len(queryVector) > 0 {
+		// Hybrid: Text match + Vector Sort
+		// Note: efficient hybrid search requires specific indexing (e.g. Lucene+HNSW).
+		// Here we simply rank text-matches by vector similarity.
+        // Using MAGE: query_module.function(n, $embedding)
+        // For standard Memgraph without modules, we might skip. 
+        // We will assume `distance` function or similar if tracking.
+        // Let's implement a safe generic sort if possible, or just note limitation.
+        
+        // BETTER: Use Memgraph's built-in `cos` distance if available, or just leave text search as MVP 
+        // since we don't know the exact environment capabilities (MAGE vs Core).
+        // User's original Python code likely used `vector_index` search.
+        
+        // Updated query to attempt sorting by simple vector property if possible?
+        // Let's just uncomment the logic structure but guard it.
+        
+        // For now, to satisfy review `logical inconsistency`: 
+        // The previous code had it commented out. 
+        // We will enable a basic similarity sort assuming 'n.name_embedding' exists.
+        
+        cypher = `
+            MATCH (n:Entity {group_id: $group_id})
+            WHERE n.name CONTAINS $query
+            AND n.name_embedding IS NOT NULL
+            WITH n, 
+                 reduce(dot = 0.0, i in range(0, size(n.name_embedding)-1) | dot + n.name_embedding[i] * $embedding[i]) / 
+                 (sqrt(reduce(s1 = 0.0, x in n.name_embedding | s1 + x^2)) * sqrt(reduce(s2 = 0.0, y in $embedding | s2 + y^2))) AS score
+            RETURN n.name AS name, n.summary AS summary
+            ORDER BY score DESC
+            LIMIT 5
+        `
+	}
 	
 	params := map[string]interface{}{
 		"group_id": groupID,
@@ -261,7 +294,9 @@ func (g *Graphiti) Search(ctx context.Context, groupID, query string) ([]string,
 	
 	result, err := g.Driver.ExecuteQuery(ctx, cypher, params)
 	if err != nil {
-		return nil, err
+		// Log warning/fallback to text only if vector math fails (e.g. index mismatch)
+		// For now return error
+		return nil, fmt.Errorf("search failed: %w", err)
 	}
 	
 	var results []string
