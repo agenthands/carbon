@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/agenthands/carbon/internal/config"
 	"github.com/agenthands/carbon/internal/core/dedupe"
 	"github.com/agenthands/carbon/internal/core/extraction"
 	"github.com/agenthands/carbon/internal/core/model"
@@ -21,16 +22,18 @@ type Graphiti struct {
 	Extractor    *extraction.Extractor
 	Deduplicator *dedupe.Deduplicator
 	Summarizer   *summary.Summarizer
+	Config       *config.Config
 }
 
-func NewGraphiti(driver driver.GraphDriver, llmClient llm.LLMClient, embedderClient llm.EmbedderClient) *Graphiti {
+func NewGraphiti(driver driver.GraphDriver, llmClient llm.LLMClient, embedderClient llm.EmbedderClient, cfg *config.Config) *Graphiti {
 	return &Graphiti{
 		Driver:       driver,
 		LLM:          llmClient,
 		Embedder:     embedderClient,
-		Extractor:    extraction.NewExtractor(llmClient),
-		Deduplicator: dedupe.NewDeduplicator(llmClient),
-		Summarizer:   summary.NewSummarizer(llmClient),
+		Extractor:    extraction.NewExtractor(llmClient, cfg.Extraction),
+		Deduplicator: dedupe.NewDeduplicator(llmClient, cfg.Deduplication),
+		Summarizer:   summary.NewSummarizer(llmClient, cfg.Summary),
+		Config:       cfg,
 	}
 }
 

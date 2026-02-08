@@ -1,0 +1,83 @@
+[extraction]
+nodes = """
+<ENTITY TYPES>
+%s
+</ENTITY TYPES>
+
+<CURRENT MESSAGE>
+%s
+</CURRENT MESSAGE>
+
+Instructions:
+Extract entities mentioned in the CURRENT MESSAGE.
+Return the result as a JSON object with a key "extracted_entities" which is a list of objects.
+Each object should have "name" (string) and "entity_type_id" (int).
+
+Example JSON:
+{
+  "extracted_entities": [
+    {"name": "John Doe", "entity_type_id": 1}
+  ]
+}
+"""
+
+edges = """
+<NODES>
+%s
+</NODES>
+
+Instructions:
+Extract relationships between the provided nodes based on common knowledge or context.
+Return the result as a JSON object with a key "extracted_edges" which is a list of objects.
+Each object should have "source_node_uuid" (string), "target_node_uuid" (string), "relation_type" (string), and "fact" (string).
+
+Example JSON:
+{
+  "extracted_edges": [
+    {"source_node_uuid": "uuid-1", "target_node_uuid": "uuid-2", "relation_type": "FRIEND", "fact": "They are friends"}
+  ]
+}
+"""
+
+[deduplication]
+nodes = """
+<NEW NODES>
+%s
+</NEW NODES>
+
+<EXISTING NODES>
+%s
+</EXISTING NODES>
+
+Instructions:
+Identify if any of the NEW NODES are duplicates of the EXISTING NODES.
+Return a JSON object with key "duplicates" which is a list of objects.
+Each object should have "original_uuid" (existing node UUID), "duplicate_uuid" (new node UUID), and "confidence" (float).
+
+Example JSON:
+{
+  "duplicates": [
+    {"original_uuid": "existing-1", "duplicate_uuid": "new-1", "confidence": 0.9}
+  ]
+}
+"""
+
+[summary]
+nodes = """
+<EXISTING SUMMARY>
+%s
+</EXISTING SUMMARY>
+
+<NEW MENTIONS>
+%s
+</NEW MENTIONS>
+
+Instructions:
+Update the existing summary to incorporate the new information from the mentions.
+Return the result as a JSON object with a single key "summary" (string).
+
+Example JSON:
+{
+  "summary": "Alice is a software engineer living in Paris."
+}
+"""

@@ -5,42 +5,25 @@ import (
 	"encoding/json"
 	"fmt"
 	
+	"github.com/agenthands/carbon/internal/config"
 	"github.com/agenthands/carbon/internal/core/model"
 	"github.com/agenthands/carbon/internal/llm"
 )
 
 type Deduplicator struct {
-	LLM llm.LLMClient
+	LLM     llm.LLMClient
+	Prompts config.DeduplicationPrompts
 }
 
-func NewDeduplicator(llmClient llm.LLMClient) *Deduplicator {
+func NewDeduplicator(llmClient llm.LLMClient, prompts config.DeduplicationPrompts) *Deduplicator {
 	return &Deduplicator{
-		LLM: llmClient,
+		LLM:     llmClient,
+		Prompts: prompts,
 	}
 }
 
 func (d *Deduplicator) ResolveDuplicates(ctx context.Context, newNodes []model.EntityNode, existingNodes []model.EntityNode) ([]model.DuplicatePair, error) {
-	prompt := fmt.Sprintf(`
-<NEW NODES>
-%s
-</NEW NODES>
-
-<EXISTING NODES>
-%s
-</EXISTING NODES>
-
-Instructions:
-Identify if any of the NEW NODES are duplicates of the EXISTING NODES.
-Return a JSON object with key "duplicates" which is a list of objects.
-Each object should have "original_uuid" (existing node UUID), "duplicate_uuid" (new node UUID), and "confidence" (float).
-
-Example JSON:
-{
-  "duplicates": [
-    {"original_uuid": "existing-1", "duplicate_uuid": "new-1", "confidence": 0.9}
-  ]
-}
-`, serializeNodes(newNodes), serializeNodes(existingNodes))
+	prompt := fmt.Sprintf(d.Prompts.Nodes, serializeNodes(newNodes), serializeNodes(existingNodes))
 
 	response, err := d.LLM.Generate(ctx, prompt)
 	if err != nil {

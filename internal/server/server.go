@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/agenthands/carbon/internal/config"
 	"github.com/agenthands/carbon/internal/core"
 	"github.com/agenthands/carbon/internal/driver"
 	"github.com/agenthands/carbon/internal/llm"
@@ -44,7 +45,24 @@ func NewServer() *Server {
 		log.Fatalf("Failed to initialize Ollama client: %v", err)
 	}
 
-	g := core.NewGraphiti(d, ollamaClient, ollamaClient) // Using Ollama for both LLM and Embedding for now
+	// Load Config
+	cfg, err := config.Load("config/prompts.toml")
+	if err != nil {
+		log.Printf("Warning: Could not load config/prompts.toml: %v. Using empty config (This will panic if code expects config)", err)
+		// For robustness, maybe we should have default config fallback, but for now let's fail or assume file exists
+		// Actually, let's look for env var for config path
+		cfgPath := os.Getenv("CONFIG_PATH")
+		if cfgPath == "" {
+			cfgPath = "config/prompts.toml"
+		}
+		
+		cfg, err = config.Load(cfgPath)
+		if err != nil {
+			log.Fatalf("Failed to load configuration: %v", err)
+		}
+	}
+
+	g := core.NewGraphiti(d, ollamaClient, ollamaClient, cfg) // Using Ollama for both LLM and Embedding for now
 
 	return &Server{
 		Graphiti: g,

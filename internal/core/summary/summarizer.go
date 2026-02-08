@@ -5,17 +5,20 @@ import (
 	"fmt"
 	"encoding/json"
 	
+	"github.com/agenthands/carbon/internal/config"
 	"github.com/agenthands/carbon/internal/core/model"
 	"github.com/agenthands/carbon/internal/llm"
 )
 
 type Summarizer struct {
-	LLM llm.LLMClient
+	LLM     llm.LLMClient
+	Prompts config.SummaryPrompts
 }
 
-func NewSummarizer(llmClient llm.LLMClient) *Summarizer {
+func NewSummarizer(llmClient llm.LLMClient, prompts config.SummaryPrompts) *Summarizer {
 	return &Summarizer{
-		LLM: llmClient,
+		LLM:     llmClient,
+		Prompts: prompts,
 	}
 }
 
@@ -25,24 +28,7 @@ func (s *Summarizer) SummarizeNode(ctx context.Context, node model.EntityNode, n
 		mentionsList += fmt.Sprintf("- %s\n", m)
 	}
 
-	prompt := fmt.Sprintf(`
-<EXISTING SUMMARY>
-%s
-</EXISTING SUMMARY>
-
-<NEW MENTIONS>
-%s
-</NEW MENTIONS>
-
-Instructions:
-Update the existing summary to incorporate the new information from the mentions.
-Return the result as a JSON object with a single key "summary" (string).
-
-Example JSON:
-{
-  "summary": "Alice is a software engineer living in Paris."
-}
-`, node.Summary, mentionsList)
+	prompt := fmt.Sprintf(s.Prompts.Nodes, node.Summary, mentionsList)
 
 	response, err := s.LLM.Generate(ctx, prompt)
 	if err != nil {
