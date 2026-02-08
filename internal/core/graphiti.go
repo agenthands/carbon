@@ -7,22 +7,28 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/agenthands/carbon/internal/core/dedupe"
+	"github.com/agenthands/carbon/internal/core/extraction"
 	"github.com/agenthands/carbon/internal/core/model"
 	"github.com/agenthands/carbon/internal/driver"
 	"github.com/agenthands/carbon/internal/llm"
 )
 
 type Graphiti struct {
-	Driver   *driver.MemgraphDriver
-	LLM      llm.LLMClient
-	Embedder llm.EmbedderClient
+	Driver       driver.GraphDriver
+	LLM          llm.LLMClient
+	Embedder     llm.EmbedderClient
+	Extractor    *extraction.Extractor
+	Deduplicator *dedupe.Deduplicator
 }
 
-func NewGraphiti(driver *driver.MemgraphDriver, llmClient llm.LLMClient, embedderClient llm.EmbedderClient) *Graphiti {
+func NewGraphiti(driver driver.GraphDriver, llmClient llm.LLMClient, embedderClient llm.EmbedderClient) *Graphiti {
 	return &Graphiti{
-		Driver:   driver,
-		LLM:      llmClient,
-		Embedder: embedderClient,
+		Driver:       driver,
+		LLM:          llmClient,
+		Embedder:     embedderClient,
+		Extractor:    extraction.NewExtractor(llmClient),
+		Deduplicator: dedupe.NewDeduplicator(llmClient),
 	}
 }
 
@@ -153,20 +159,43 @@ func (g *Graphiti) AddEpisode(ctx context.Context, groupID, name, content string
 }
 
 func (g *Graphiti) Search(ctx context.Context, groupID, query string) ([]string, error) {
-	// Mock vector search or fulltext search call
-	// For MVP, returning mock results or basic query
+	// Hybrid Search Implementation
+	
+	// 1. Get Embedding
+	var queryVector []float32
+	if g.Embedder != nil {
+		vec, err := g.Embedder.Embed(ctx, query)
+		if err == nil {
+			queryVector = vec
+		}
+	}
+	
+	// 2. Construct Query
+	// Using a basic approximation of hybrid search:
+	// Find nodes by text match (CONTAINS) AND find nodes by vector similarity if vector exists
+	// Memgraph supports vector search. Typically via `vector_search.search` module or similar.
+	// Since we are porting, let's assume we want to pass the vector to the DB query logic.
 	
 	cypher := `
 		MATCH (n:Entity {group_id: $group_id})
 		WHERE n.name CONTAINS $query
+		// AND logic for vector similarity would be here if using MAGE, e.g. using cosine_similarity function
+		// WITH n, vector_cosine_similarity(n.name_embedding, $embedding) AS score
 		RETURN n.name AS name, n.summary AS summary
+		// ORDER BY score DESC
 		LIMIT 5
 	`
 	
-	result, err := g.Driver.ExecuteQuery(ctx, cypher, map[string]interface{}{
+	params := map[string]interface{}{
 		"group_id": groupID,
 		"query":    query,
-	})
+	}
+	
+	if len(queryVector) > 0 {
+		params["embedding"] = queryVector
+	}
+	
+	result, err := g.Driver.ExecuteQuery(ctx, cypher, params)
 	if err != nil {
 		return nil, err
 	}
@@ -177,6 +206,51 @@ func (g *Graphiti) Search(ctx context.Context, groupID, query string) ([]string,
 		summary, _ := record.Get("summary")
 		results = append(results, fmt.Sprintf("%s: %s", name, summary))
 	}
-	
+
 	return results, nil
+}
+
+// Helper to get existing nodes in group
+func (g *Graphiti) getGroupNodes(ctx context.Context, groupID string) ([]model.EntityNode, error) {
+	cypher := `MATCH (n:Entity {group_id: $group_id}) RETURN n.uuid AS uuid, n.name AS name`
+	res, err := g.Driver.ExecuteQuery(ctx, cypher, map[string]interface{}{"group_id": groupID})
+	if err != nil {
+		return nil, err
+	}
+	
+	var nodes []model.EntityNode
+	for _, rec := range res.Records {
+		uuid, _ := rec.Get("uuid")
+		name, _ := rec.Get("name")
+		nodes = append(nodes, model.EntityNode{
+			UUID: uuid.(string),
+			Name: name.(string),
+		})
+	}
+	return nodes, nil
+}
+
+// Helper: Save Entity Node
+func (g *Graphiti) saveEntity(ctx context.Context, node model.EntityNode) error {
+	params := map[string]interface{}{
+		"uuid":           node.UUID,
+		"name":           node.Name,
+		"group_id":       node.GroupID,
+		"created_at":     node.CreatedAt.Format(time.RFC3339),
+		"summary":        "", // Could be empty initially
+		"name_embedding": nil, // Should compute embedding ideally
+		"attributes":     "{}",
+		"labels":         []string{},
+	}
+	
+	// Compute embedding if possible
+	if g.Embedder != nil {
+		emb, err := g.Embedder.Embed(ctx, node.Name)
+		if err == nil {
+			params["name_embedding"] = emb
+		}
+	}
+
+	_, err := g.Driver.ExecuteQuery(ctx, driver.SaveEntityNodeQuery, params)
+	return err
 }
