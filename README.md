@@ -34,15 +34,33 @@ Carbon follows a modular architecture:
     cd carbon
     ```
 
+
 2.  **Configuration**:
-    Set the following environment variables (create a `.env` file):
+    Carbon uses `config/config.toml` for prompts and LLM settings.
+    You can also use environment variables to override LLM settings.
+
+    Example `config/config.toml`:
+    ```toml
+    [llm]
+    provider = "openai" # ollama, openai, gemini, claude
+    model = "gpt-4o"
+    api_key = "sk-..."
+    base_url = "" # Optional, for Ollama or custom OpenAI proxies
+    ```
+
+    Or environment variables:
     ```bash
-    MEMGRAPH_URI="bolt://localhost:7687"
-    MEMGRAPH_USER=""
-    MEMGRAPH_PASSWORD=""
-    OLLAMA_BASE_URL="http://localhost:11434"
-    LLM_MODEL="gpt-oss:latest"
-    PORT="8080"
+    export LLM_PROVIDER="openai"
+    export LLM_MODEL="gpt-4o"
+    export LLM_API_KEY="sk-..."
+    ```
+
+    Memgraph connection is configured via env vars:
+    ```bash
+    export MEMGRAPH_URI="bolt://localhost:7687"
+    export MEMGRAPH_USER=""
+    export MEMGRAPH_PASSWORD=""
+    export PORT="8080"
     ```
 
 3.  **Run the Server**:

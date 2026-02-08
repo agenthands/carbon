@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -30,30 +31,15 @@ func NewServer() *Server {
 		log.Fatalf("Failed to connect to Memgraph: %v", err)
 	}
 
-	ollamaBaseID := os.Getenv("OLLAMA_BASE_URL")
-	if ollamaBaseID == "" {
-		ollamaBaseID = "http://localhost:11434"
-	}
-
-	modelName := os.Getenv("LLM_MODEL")
-	if modelName == "" {
-		modelName = "gpt-oss:latest"
-	}
-
-	ollamaClient, err := llm.NewOllamaClient(modelName, ollamaBaseID)
-	if err != nil {
-		log.Fatalf("Failed to initialize Ollama client: %v", err)
-	}
-
 	// Load Config
-	cfg, err := config.Load("config/prompts.toml")
+	cfg, err := config.Load("config/config.toml")
 	if err != nil {
-		log.Printf("Warning: Could not load config/prompts.toml: %v. Using empty config (This will panic if code expects config)", err)
+		log.Printf("Warning: Could not load config/config.toml: %v. Using empty config (This will panic if code expects config)", err)
 		// For robustness, maybe we should have default config fallback, but for now let's fail or assume file exists
 		// Actually, let's look for env var for config path
 		cfgPath := os.Getenv("CONFIG_PATH")
 		if cfgPath == "" {
-			cfgPath = "config/prompts.toml"
+			cfgPath = "config/config.toml"
 		}
 		
 		cfg, err = config.Load(cfgPath)
@@ -62,7 +48,34 @@ func NewServer() *Server {
 		}
 	}
 
-	g := core.NewGraphiti(d, ollamaClient, ollamaClient, cfg) // Using Ollama for both LLM and Embedding for now
+	// Override config with env vars if present (simple override logic)
+	if envProvider := os.Getenv("LLM_PROVIDER"); envProvider != "" {
+		cfg.LLM.Provider = envProvider
+	}
+	if envModel := os.Getenv("LLM_MODEL"); envModel != "" {
+		cfg.LLM.Model = envModel
+	}
+	if envAPIKey := os.Getenv("LLM_API_KEY"); envAPIKey != "" {
+		cfg.LLM.APIKey = envAPIKey
+	}
+	if envBaseURL := os.Getenv("LLM_BASE_URL") ; envBaseURL != "" {
+		cfg.LLM.BaseURL = envBaseURL
+	}
+	
+	// Default to Ollama if provider is empty
+	if cfg.LLM.Provider == "" {
+		cfg.LLM.Provider = "ollama"
+		cfg.LLM.Model = "gpt-oss:latest"
+		cfg.LLM.BaseURL = "http://localhost:11434"
+	}
+
+	// Initialize LLM Client via Factory
+	llmClient, embedderClient, err := llm.NewClient(context.Background(), cfg.LLM)
+	if err != nil {
+		log.Fatalf("Failed to initialize LLM client: %v", err)
+	}
+
+	g := core.NewGraphiti(d, llmClient, embedderClient, cfg)
 
 	return &Server{
 		Graphiti: g,

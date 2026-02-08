@@ -20,7 +20,15 @@ type SummaryPrompts struct {
 	Nodes string `toml:"nodes"`
 }
 
+type LLMConfig struct {
+	Provider string `toml:"provider"`
+	Model    string `toml:"model"`
+	APIKey   string `toml:"api_key"`
+	BaseURL  string `toml:"base_url"`
+}
+
 type Config struct {
+	LLM           LLMConfig            `toml:"llm"`
 	Extraction    ExtractionPrompts    `toml:"extraction"`
 	Deduplication DeduplicationPrompts `toml:"deduplication"`
 	Summary       SummaryPrompts       `toml:"summary"`
