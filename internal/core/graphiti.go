@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/agenthands/carbon/internal/core/dedupe"
 	"github.com/agenthands/carbon/internal/core/extraction"
 	"github.com/agenthands/carbon/internal/core/model"
+	"github.com/agenthands/carbon/internal/core/summary"
 	"github.com/agenthands/carbon/internal/driver"
 	"github.com/agenthands/carbon/internal/llm"
 )
@@ -20,6 +20,7 @@ type Graphiti struct {
 	Embedder     llm.EmbedderClient
 	Extractor    *extraction.Extractor
 	Deduplicator *dedupe.Deduplicator
+	Summarizer   *summary.Summarizer
 }
 
 func NewGraphiti(driver driver.GraphDriver, llmClient llm.LLMClient, embedderClient llm.EmbedderClient) *Graphiti {
@@ -29,6 +30,7 @@ func NewGraphiti(driver driver.GraphDriver, llmClient llm.LLMClient, embedderCli
 		Embedder:     embedderClient,
 		Extractor:    extraction.NewExtractor(llmClient),
 		Deduplicator: dedupe.NewDeduplicator(llmClient),
+		Summarizer:   summary.NewSummarizer(llmClient),
 	}
 }
 
@@ -73,85 +75,144 @@ func (g *Graphiti) SaveEntityNode(ctx context.Context, name, groupID, summary st
 }
 
 func (g *Graphiti) AddEpisode(ctx context.Context, groupID, name, content string) error {
-	// Simple implementation: Create Episode Node -> Extract Entities -> Link
-	
-	epUUID := uuid.New().String()
+	// 1. Create Episode Node
+	episodeUUID := uuid.New().String()
 	now := time.Now().UTC()
 	
-	// Save Episode
-	epParams := map[string]interface{}{
-		"uuid":               epUUID,
-		"name":               name,
-		"group_id":           groupID,
-		"created_at":         now,
-		"valid_at":           now,
+	params := map[string]interface{}{
+		"uuid":               episodeUUID,
+		"name":               name, 
+		"group_id":           groupID, 
+		"created_at":         now.Format(time.RFC3339),
+		"valid_at":           now.Format(time.RFC3339),
 		"content":            content,
-		"source":             "message",
+		"source":             "user", // simple default
 		"source_description": "user message",
-		"entity_edges":       []string{}, // Populated later
+		"entity_edges":       []string{},
 	}
 	
-	_, err := g.Driver.ExecuteQuery(ctx, driver.SaveEpisodicNodeQuery, epParams)
-	if err != nil {
+	if _, err := g.Driver.ExecuteQuery(ctx, driver.SaveEpisodicNodeQuery, params); err != nil {
 		return fmt.Errorf("failed to save episode: %w", err)
 	}
 
-	// Extract Entities (Mocking specific extraction logic for now, using LLM to just identify names)
-	prompt := fmt.Sprintf("Extract up to 5 key entities (people, places, things) from the following text as a JSON list of strings:\n\n%s", content)
-	response, err := g.LLM.Generate(ctx, prompt)
+	// 2. Extract Entities
+	extractedEntities, err := g.Extractor.ExtractNodes(ctx, content, "Person, Place, Organization", nil)
 	if err != nil {
-		return fmt.Errorf("failed to generate entities: %w", err)
+		return fmt.Errorf("extraction failed: %w", err)
 	}
 
-	// Clean response (basic cleanup)
-	// In production, use robust JSON parsing or structured output mode
-	var entityNames []string
-	
-	// Attempt to parse JSON
-    // Start of JSON list
-    start := -1
-    for i, c := range response {
-        if c == '[' {
-            start = i
-            break
-        }
-    }
-    // End of JSON list
-    end := -1
-    for i := len(response) - 1; i >= 0; i-- {
-        if response[i] == ']' {
-            end = i
-            break
-        }
-    }
+	// Convert Extracted to EntityNode
+	var newNodes []model.EntityNode
+	for _, e := range extractedEntities {
+		newNodes = append(newNodes, model.EntityNode{
+			UUID:      uuid.New().String(),
+			Name:      e.Name,
+			GroupID:   groupID,
+			CreatedAt: now,
+		})
+	}
 
-    if start != -1 && end != -1 && end > start {
-        jsonStr := response[start : end+1]
-        if err := json.Unmarshal([]byte(jsonStr), &entityNames); err != nil {
-             fmt.Printf("Failed to parse extracted entities: %v\n", err)
-        }
-    }
+	// 3. Deduplicate against existing
+	existingNodes, err := g.getGroupNodes(ctx, groupID)
+	// Only dedupe if we have existing nodes and new nodes
+	if err == nil && len(existingNodes) > 0 && len(newNodes) > 0 {
+		duplicates, err := g.Deduplicator.ResolveDuplicates(ctx, newNodes, existingNodes)
+		if err == nil {
+			// Map duplicate UUIDs
+			dupMap := make(map[string]string) // newUUID -> existingUUID
+			for _, d := range duplicates {
+				dupMap[d.DuplicateUUID] = d.OriginalUUID
+			}
+			
+			// Update UUIDs
+			for i := range newNodes {
+				if existingUUID, found := dupMap[newNodes[i].UUID]; found {
+					newNodes[i].UUID = existingUUID
+					// Fetch existing summary for context
+					for _, en := range existingNodes {
+						if en.UUID == existingUUID {
+							newNodes[i].Summary = en.Summary
+							break
+						}
+					}
+				}
+			}
+		}
+	}
 
-	for _, eName := range entityNames {
-		// Save Entity
-		node, err := g.SaveEntityNode(ctx, eName, groupID, "")
-		if err != nil {
+	// 4. Save Entities and MENTIONS edges
+	for _, node := range newNodes {
+		if err := g.saveEntity(ctx, node); err != nil {
 			continue
 		}
-
-		// Create Edge MENTIONS
+		
+		// Create MENTIONS edge from Episode to Entity
 		edgeUUID := uuid.New().String()
 		edgeParams := map[string]interface{}{
 			"uuid":        edgeUUID,
-			"source_uuid": epUUID,
+			"source_uuid": episodeUUID,
 			"target_uuid": node.UUID,
 			"group_id":    groupID,
-			"created_at":  now,
+			"created_at":  now.Format(time.RFC3339),
 		}
 		
-		_, err = g.Driver.ExecuteQuery(ctx, driver.SaveEpisodicEdgeQuery, edgeParams)
-		if err != nil {
-			fmt.Printf("Failed to link episode to entity %s: %v\n", eName, err)
+		if _, err := g.Driver.ExecuteQuery(ctx, driver.SaveEpisodicEdgeQuery, edgeParams); err != nil {
+			// Log error but continue
+		}
+	}
+
+	// 5. Extract Edges (Entity-Entity)
+	if len(newNodes) > 1 {
+		edges, err := g.Extractor.ExtractEdges(ctx, newNodes, nil)
+		if err == nil {
+			// Collect facts for summarization
+			nodeFacts := make(map[string][]string) // Node UUID -> Facts
+			
+			for _, e := range edges {
+				edgeParams := map[string]interface{}{
+					"uuid":           uuid.New().String(),
+					"source_uuid":    e.SourceNodeUUID,
+					"target_uuid":    e.TargetNodeUUID,
+					"name":           e.RelationType,
+					"fact":           e.Fact,
+					"group_id":       groupID,
+					"created_at":     now.Format(time.RFC3339),
+					"expired_at":     "",
+					"valid_at":       now.Format(time.RFC3339),
+					"invalid_at":     "",
+					"episodes":       []string{episodeUUID},
+					"fact_embedding": nil,
+					"attributes":     "{}",
+				}
+				
+				if g.Embedder != nil {
+					emb, err := g.Embedder.Embed(ctx, e.Fact)
+					if err == nil {
+						edgeParams["fact_embedding"] = emb
+					}
+				}
+
+				if _, err := g.Driver.ExecuteQuery(ctx, driver.SaveEntityEdgeQuery, edgeParams); err != nil {
+					// Log error
+				}
+				
+				// Add fact to nodes
+				nodeFacts[e.SourceNodeUUID] = append(nodeFacts[e.SourceNodeUUID], e.Fact)
+				nodeFacts[e.TargetNodeUUID] = append(nodeFacts[e.TargetNodeUUID], e.Fact)
+			}
+			
+			// 6. Summarize Nodes
+			for _, node := range newNodes {
+				facts, hasFacts := nodeFacts[node.UUID]
+				if hasFacts {
+					newSummary, err := g.Summarizer.SummarizeNode(ctx, node, facts)
+					if err == nil {
+						node.Summary = newSummary
+						// Update node with new summary
+						g.saveEntity(ctx, node)
+					}
+				}
+			}
 		}
 	}
 
@@ -212,7 +273,7 @@ func (g *Graphiti) Search(ctx context.Context, groupID, query string) ([]string,
 
 // Helper to get existing nodes in group
 func (g *Graphiti) getGroupNodes(ctx context.Context, groupID string) ([]model.EntityNode, error) {
-	cypher := `MATCH (n:Entity {group_id: $group_id}) RETURN n.uuid AS uuid, n.name AS name`
+	cypher := `MATCH (n:Entity {group_id: $group_id}) RETURN n.uuid AS uuid, n.name AS name, n.summary AS summary`
 	res, err := g.Driver.ExecuteQuery(ctx, cypher, map[string]interface{}{"group_id": groupID})
 	if err != nil {
 		return nil, err
@@ -222,9 +283,17 @@ func (g *Graphiti) getGroupNodes(ctx context.Context, groupID string) ([]model.E
 	for _, rec := range res.Records {
 		uuid, _ := rec.Get("uuid")
 		name, _ := rec.Get("name")
+		summary, _ := rec.Get("summary")
+		
+		sVal := ""
+		if summary != nil {
+			sVal = summary.(string)
+		}
+		
 		nodes = append(nodes, model.EntityNode{
-			UUID: uuid.(string),
-			Name: name.(string),
+			UUID:    uuid.(string),
+			Name:    name.(string),
+			Summary: sVal,
 		})
 	}
 	return nodes, nil
@@ -237,7 +306,7 @@ func (g *Graphiti) saveEntity(ctx context.Context, node model.EntityNode) error 
 		"name":           node.Name,
 		"group_id":       node.GroupID,
 		"created_at":     node.CreatedAt.Format(time.RFC3339),
-		"summary":        "", // Could be empty initially
+		"summary":        node.Summary, 
 		"name_embedding": nil, // Should compute embedding ideally
 		"attributes":     "{}",
 		"labels":         []string{},
