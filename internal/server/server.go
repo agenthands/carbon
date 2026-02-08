@@ -55,6 +55,9 @@ func NewServer() *Server {
 	if envModel := os.Getenv("LLM_MODEL"); envModel != "" {
 		cfg.LLM.Model = envModel
 	}
+	if envEmbeddingModel := os.Getenv("LLM_EMBEDDING_MODEL"); envEmbeddingModel != "" {
+		cfg.LLM.EmbeddingModel = envEmbeddingModel
+	}
 	if envAPIKey := os.Getenv("LLM_API_KEY"); envAPIKey != "" {
 		cfg.LLM.APIKey = envAPIKey
 	}

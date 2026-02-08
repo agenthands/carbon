@@ -12,11 +12,11 @@ func NewClient(ctx context.Context, cfg config.LLMConfig) (LLMClient, EmbedderCl
 	
 	switch provider {
 	case "openai":
-		c := NewOpenAIClient(cfg.APIKey, cfg.Model, cfg.BaseURL)
+		c := NewOpenAIClient(cfg.APIKey, cfg.Model, cfg.EmbeddingModel, cfg.BaseURL)
 		return c, c, nil
 	
 	case "gemini":
-		c, err := NewGeminiClient(ctx, cfg.APIKey, cfg.Model)
+		c, err := NewGeminiClient(ctx, cfg.APIKey, cfg.Model, cfg.EmbeddingModel)
 		if err != nil {
 			return nil, nil, err
 		}

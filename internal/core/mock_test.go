@@ -43,8 +43,14 @@ func (m *MockEmbedder) Embed(ctx context.Context, text string) ([]float32, error
 }
 
 type MockLLM struct {
-	Response string
+	Response     string
+	ResponseQueue []string
 }
 func (m *MockLLM) Generate(ctx context.Context, prompt string) (string, error) {
+	if len(m.ResponseQueue) > 0 {
+		resp := m.ResponseQueue[0]
+		m.ResponseQueue = m.ResponseQueue[1:]
+		return resp, nil
+	}
 	return m.Response, nil
 }

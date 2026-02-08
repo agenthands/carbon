@@ -23,6 +23,7 @@ type Graphiti struct {
 	Deduplicator *dedupe.Deduplicator
 	Summarizer   *summary.Summarizer
 	Config       *config.Config
+	UUIDGenerator func() string
 }
 
 func NewGraphiti(driver driver.GraphDriver, llmClient llm.LLMClient, embedderClient llm.EmbedderClient, cfg *config.Config) *Graphiti {
@@ -34,6 +35,7 @@ func NewGraphiti(driver driver.GraphDriver, llmClient llm.LLMClient, embedderCli
 		Deduplicator: dedupe.NewDeduplicator(llmClient, cfg.Deduplication),
 		Summarizer:   summary.NewSummarizer(llmClient, cfg.Summary),
 		Config:       cfg,
+		UUIDGenerator: func() string { return uuid.New().String() },
 	}
 }
 
@@ -43,7 +45,7 @@ func (g *Graphiti) BuildIndices(ctx context.Context) error {
 
 func (g *Graphiti) SaveEntityNode(ctx context.Context, name, groupID, summary string) (*model.EntityNode, error) {
 	node := &model.EntityNode{
-		UUID:      uuid.New().String(),
+		UUID:      g.UUIDGenerator(),
 		Name:      name,
 		GroupID:   groupID,
 		CreatedAt: time.Now().UTC(),
@@ -79,7 +81,7 @@ func (g *Graphiti) SaveEntityNode(ctx context.Context, name, groupID, summary st
 
 func (g *Graphiti) AddEpisode(ctx context.Context, groupID, name, content string) error {
 	// 1. Create Episode Node
-	episodeUUID := uuid.New().String()
+	episodeUUID := g.UUIDGenerator()
 	now := time.Now().UTC()
 	
 	params := map[string]interface{}{
@@ -108,7 +110,7 @@ func (g *Graphiti) AddEpisode(ctx context.Context, groupID, name, content string
 	var newNodes []model.EntityNode
 	for _, e := range extractedEntities {
 		newNodes = append(newNodes, model.EntityNode{
-			UUID:      uuid.New().String(),
+			UUID:      g.UUIDGenerator(),
 			Name:      e.Name,
 			GroupID:   groupID,
 			CreatedAt: now,
@@ -150,7 +152,7 @@ func (g *Graphiti) AddEpisode(ctx context.Context, groupID, name, content string
 		}
 		
 		// Create MENTIONS edge from Episode to Entity
-		edgeUUID := uuid.New().String()
+		edgeUUID := g.UUIDGenerator()
 		edgeParams := map[string]interface{}{
 			"uuid":        edgeUUID,
 			"source_uuid": episodeUUID,
@@ -173,7 +175,7 @@ func (g *Graphiti) AddEpisode(ctx context.Context, groupID, name, content string
 			
 			for _, e := range edges {
 				edgeParams := map[string]interface{}{
-					"uuid":           uuid.New().String(),
+					"uuid":           g.UUIDGenerator(),
 					"source_uuid":    e.SourceNodeUUID,
 					"target_uuid":    e.TargetNodeUUID,
 					"name":           e.RelationType,

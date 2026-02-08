@@ -12,9 +12,10 @@ import (
 type GeminiClient struct {
 	client *genai.Client
 	model  string
+	embeddingModel string
 }
 
-func NewGeminiClient(ctx context.Context, apiKey string, model string) (*GeminiClient, error) {
+func NewGeminiClient(ctx context.Context, apiKey string, model string, embeddingModel string) (*GeminiClient, error) {
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
 		return nil, err
@@ -22,6 +23,7 @@ func NewGeminiClient(ctx context.Context, apiKey string, model string) (*GeminiC
 	return &GeminiClient{
 		client: client,
 		model:  model,
+		embeddingModel: embeddingModel,
 	}, nil
 }
 
@@ -44,8 +46,11 @@ func (c *GeminiClient) Generate(ctx context.Context, prompt string) (string, err
 
 func (c *GeminiClient) Embed(ctx context.Context, text string) ([]float32, error) {
 	// For Gemini, embedding model name is usually separate, e.g. "embedding-001" or "text-embedding-004"
-	// Hardcoding reasonable default for now or inferring?
-	embedModel := c.client.EmbeddingModel("text-embedding-004")
+	model := c.embeddingModel
+	if model == "" {
+		model = "text-embedding-004"
+	}
+	embedModel := c.client.EmbeddingModel(model)
 	res, err := embedModel.EmbedContent(ctx, genai.Text(text))
 	if err != nil {
 		return nil, err

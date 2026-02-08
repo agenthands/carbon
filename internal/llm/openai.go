@@ -10,9 +10,10 @@ import (
 type OpenAIClient struct {
 	client *openai.Client
 	model  string
+	embeddingModel string
 }
 
-func NewOpenAIClient(apiKey string, model string, baseURL string) *OpenAIClient {
+func NewOpenAIClient(apiKey string, model string, embeddingModel string, baseURL string) *OpenAIClient {
 	config := openai.DefaultConfig(apiKey)
 	if baseURL != "" {
 		config.BaseURL = baseURL
@@ -21,6 +22,7 @@ func NewOpenAIClient(apiKey string, model string, baseURL string) *OpenAIClient 
 	return &OpenAIClient{
 		client: client,
 		model:  model,
+		embeddingModel: embeddingModel,
 	}
 }
 
@@ -45,9 +47,13 @@ func (c *OpenAIClient) Generate(ctx context.Context, prompt string) (string, err
 }
 
 func (c *OpenAIClient) Embed(ctx context.Context, text string) ([]float32, error) {
+	model := c.embeddingModel
+	if model == "" {
+		model = string(openai.SmallEmbedding3)
+	}
 	req := openai.EmbeddingRequest{
 		Input: []string{text},
-		Model: openai.SmallEmbedding3,
+		Model: openai.EmbeddingModel(model),
 	}
 	resp, err := c.client.CreateEmbeddings(ctx, req)
 	if err != nil {
