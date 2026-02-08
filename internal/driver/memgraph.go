@@ -53,19 +53,20 @@ func (d *MemgraphDriver) BuildIndices(ctx context.Context) error {
 		"CREATE INDEX ON :Community(group_id);",
 		"CREATE INDEX ON :Saga(group_id);",
 
-		// Text indices? Memgraph has text search but syntax might differ from Neo4j fulltext
-		// For now, simpler indices.
-		
 		// Vector indices setup would go here if using Memgraph's vector search capabilities
 		// Example: CALL vector_search.create_index("Entity", "name_embedding", 1536, "COSINE");
 		// Need to verify if Memgraph Mage is running with vector modules.
 	}
 
+	session := d.Driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
+	defer session.Close(ctx)
+
 	for _, q := range queries {
-		_, err := d.ExecuteQuery(ctx, q, nil)
+		// Use Run directly for auto-commit transaction required for schema changes in Memgraph
+		_, err := session.Run(ctx, q, nil)
 		if err != nil {
+			// Check if error is "already exists" or similar if needed, but logging warning is fine
 			log.Printf("Warning: failed to create index '%s': %v", q, err)
-			// Continue, as index might already exist
 		}
 	}
 	

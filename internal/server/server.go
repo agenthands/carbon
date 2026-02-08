@@ -18,61 +18,47 @@ type Server struct {
 }
 
 func NewServer() *Server {
-	// Initialize components
-	dbURI := os.Getenv("MEMGRAPH_URI")
-	if dbURI == "" {
-		dbURI = "bolt://localhost:7687"
+	// 1. Load Config
+	cfgPath := os.Getenv("CONFIG_PATH")
+	if cfgPath == "" {
+		cfgPath = "config/config.toml"
 	}
-	dbUser := os.Getenv("MEMGRAPH_USER")
-	dbPass := os.Getenv("MEMGRAPH_PASSWORD")
+	
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		log.Printf("Warning: Could not load config/config.toml: %v. Using empty config", err)
+		// Try fallback if really needed, but better to fail or use defaults
+		cfg = &config.Config{}
+	}
 
-	d, err := driver.NewMemgraphDriver(dbURI, dbUser, dbPass)
+	// 2. Override Secrets with Env Vars (ONLY Secrets)
+	if envAPIKey := os.Getenv("LLM_API_KEY"); envAPIKey != "" {
+		cfg.LLM.APIKey = envAPIKey
+	}
+	// Password for DB (Secret)
+	if envDBPass := os.Getenv("MEMGRAPH_PASSWORD"); envDBPass != "" {
+		cfg.Memgraph.Password = envDBPass
+	}
+	
+	// 3. Initialize Memgraph Driver
+	// Use config URI/User, default if missing
+	if cfg.Memgraph.URI == "" {
+		cfg.Memgraph.URI = "bolt://localhost:7687"
+	}
+	
+	d, err := driver.NewMemgraphDriver(cfg.Memgraph.URI, cfg.Memgraph.User, cfg.Memgraph.Password)
 	if err != nil {
 		log.Fatalf("Failed to connect to Memgraph: %v", err)
 	}
 
-	// Load Config
-	cfg, err := config.Load("config/config.toml")
-	if err != nil {
-		log.Printf("Warning: Could not load config/config.toml: %v. Using empty config (This will panic if code expects config)", err)
-		// For robustness, maybe we should have default config fallback, but for now let's fail or assume file exists
-		// Actually, let's look for env var for config path
-		cfgPath := os.Getenv("CONFIG_PATH")
-		if cfgPath == "" {
-			cfgPath = "config/config.toml"
-		}
-		
-		cfg, err = config.Load(cfgPath)
-		if err != nil {
-			log.Fatalf("Failed to load configuration: %v", err)
-		}
-	}
-
-	// Override config with env vars if present (simple override logic)
-	if envProvider := os.Getenv("LLM_PROVIDER"); envProvider != "" {
-		cfg.LLM.Provider = envProvider
-	}
-	if envModel := os.Getenv("LLM_MODEL"); envModel != "" {
-		cfg.LLM.Model = envModel
-	}
-	if envEmbeddingModel := os.Getenv("LLM_EMBEDDING_MODEL"); envEmbeddingModel != "" {
-		cfg.LLM.EmbeddingModel = envEmbeddingModel
-	}
-	if envAPIKey := os.Getenv("LLM_API_KEY"); envAPIKey != "" {
-		cfg.LLM.APIKey = envAPIKey
-	}
-	if envBaseURL := os.Getenv("LLM_BASE_URL") ; envBaseURL != "" {
-		cfg.LLM.BaseURL = envBaseURL
-	}
-	
-	// Default to Ollama if provider is empty
+	// 4. Default LLM if missing
 	if cfg.LLM.Provider == "" {
 		cfg.LLM.Provider = "ollama"
 		cfg.LLM.Model = "gpt-oss:latest"
 		cfg.LLM.BaseURL = "http://localhost:11434"
 	}
 
-	// Initialize LLM Client via Factory
+	// 5. Initialize LLM Client via Factory
 	llmClient, embedderClient, err := llm.NewClient(context.Background(), cfg.LLM)
 	if err != nil {
 		log.Fatalf("Failed to initialize LLM client: %v", err)

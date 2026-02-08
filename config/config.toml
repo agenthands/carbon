@@ -3,6 +3,12 @@ provider = "ollama"
 model = "gpt-oss:latest"
 base_url = "http://localhost:11434"
 # api_key = ""
+# embedding_model = "nomic-embed-text" # Optional: specify different model for embeddings
+
+[memgraph]
+uri = "bolt://127.0.0.1:7687"
+user = "" # default
+# password = "" # set via env var MEMGRAPH_PASSWORD
 
 [extraction]
 nodes = """

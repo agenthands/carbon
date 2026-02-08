@@ -23,52 +23,22 @@ func TestFullFlow(t *testing.T) {
 	// Load environment if present
 	_ = godotenv.Load("../../.env") // Try root .env
 
-	// Memgraph Config
-	uri := os.Getenv("MEMGRAPH_URI")
-	if uri == "" {
-		t.Skip("Skipping integration test: MEMGRAPH_URI not set")
-	}
-	user := os.Getenv("MEMGRAPH_USER")
-	pwd := os.Getenv("MEMGRAPH_PASSWORD")
-
-	// LLM Config
-	provider := os.Getenv("LLM_PROVIDER")
-	model := os.Getenv("LLM_MODEL")
-	baseURL := os.Getenv("OLLAMA_BASE_URL") // Fallback
-	if provider == "" {
-		provider = "ollama"
-	}
-	if model == "" {
-		model = "gpt-oss:latest"
-	}
-	if baseURL == "" {
-		baseURL = "http://localhost:11434"
-	}
-
-	// Connect Driver
-	d, err := driver.NewMemgraphDriver(uri, user, pwd)
-	require.NoError(t, err)
-	defer d.Close(context.Background())
-
-	// Initialize LLM
-	llmCfg := config.LLMConfig{
-		Provider: provider,
-		Model:    model,
-		BaseURL:  baseURL,
-		APIKey:   os.Getenv("LLM_API_KEY"),
-	}
-	
-	ctx := context.Background()
-	llmClient, embedder, err := llm.NewClient(ctx, llmCfg)
-	require.NoError(t, err)
-
-	// Load default prompts from file or construct manually
-	// Assuming prompts.toml is in config/config.toml relative to root
+	// Load Config
 	cfgPath := "../../config/config.toml"
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
-		// Create default config if file missing
+		// Create default config if file missing (or rely on env fallback if we kept it, but user wants config first)
+		// For integration test, we assume config file exists or we manually construct config.
+		// Let's manually construct minimal defaults if load fails
 		cfg = &config.Config{
+			LLM: config.LLMConfig{
+				Provider: "ollama", 
+				Model:    "gpt-oss:latest",
+				BaseURL:  "http://localhost:11434",
+			},
+			Memgraph: config.MemgraphConfig{
+				URI: "bolt://localhost:7687",
+			},
 			Extraction: config.ExtractionPrompts{
 				Nodes: "Extract entities regarding the content: %s\nTypes: %s",
 				Edges: "Extract edges from: %s",
@@ -81,8 +51,26 @@ func TestFullFlow(t *testing.T) {
 			},
 		}
 	}
-	// Ensure LLM config matches environment if loaded from file
-	cfg.LLM = llmCfg
+
+	// Override Secrets from Env
+	if apiKey := os.Getenv("LLM_API_KEY"); apiKey != "" {
+		cfg.LLM.APIKey = apiKey
+	}
+	if dbPass := os.Getenv("MEMGRAPH_PASSWORD"); dbPass != "" {
+		cfg.Memgraph.Password = dbPass
+	}
+
+	// Connect Driver
+	if cfg.Memgraph.URI == "" {
+		cfg.Memgraph.URI = "bolt://localhost:7687"
+	}
+	d, err := driver.NewMemgraphDriver(cfg.Memgraph.URI, cfg.Memgraph.User, cfg.Memgraph.Password)
+	require.NoError(t, err)
+	defer d.Close(context.Background())
+	
+	ctx := context.Background()
+	llmClient, embedder, err := llm.NewClient(ctx, cfg.LLM)
+	require.NoError(t, err)
 
 	// Initialize Graphiti
 	g := core.NewGraphiti(d, llmClient, embedder, cfg)

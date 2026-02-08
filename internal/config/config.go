@@ -28,8 +28,15 @@ type LLMConfig struct {
 	BaseURL        string `toml:"base_url"`
 }
 
+type MemgraphConfig struct {
+	URI      string `toml:"uri"`
+	User     string `toml:"user"`
+	Password string `toml:"password"`
+}
+
 type Config struct {
 	LLM           LLMConfig            `toml:"llm"`
+	Memgraph      MemgraphConfig       `toml:"memgraph"`
 	Extraction    ExtractionPrompts    `toml:"extraction"`
 	Deduplication DeduplicationPrompts `toml:"deduplication"`
 	Summary       SummaryPrompts       `toml:"summary"`
