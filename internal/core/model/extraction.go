@@ -2,8 +2,9 @@ package model
 
 // Matches Python ExtractedEntity in graphiti_core/prompts/extract_nodes.py
 type ExtractedEntity struct {
-	Name         string `json:"name"`
-	EntityTypeID int    `json:"entity_type_id"`
+	Name         string                 `json:"name"`
+	EntityTypeID int                    `json:"entity_type_id"`
+	Attributes   map[string]interface{} `json:"attributes,omitempty"`
 }
 
 // Matches Python ExtractedEntities
@@ -14,6 +15,10 @@ type ExtractedEntities struct {
 // Matches Python EntitySummary
 type EntitySummary struct {
 	Summary string `json:"summary"`
+}
+
+type CommunityName struct {
+	Name string `json:"name"`
 }
 
 // Prompt context data structure

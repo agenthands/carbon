@@ -72,7 +72,7 @@ func TestAddEpisode(t *testing.T) {
 		Summary: config.SummaryPrompts{Nodes: "%s"},
 	}
 	
-	g := NewGraphiti(mockDriver, mockLLM, &MockEmbedder{}, cfg)
+	g := NewGraphiti(mockDriver, mockLLM, &MockEmbedder{}, nil, cfg)
 	
 	uuidCounter := 0
 	g.UUIDGenerator = func() string {
@@ -80,7 +80,7 @@ func TestAddEpisode(t *testing.T) {
 		return fmt.Sprintf("uuid-%d", uuidCounter)
 	}
 	
-	err := g.AddEpisode(context.Background(), "group-1", "Ep1", "Alice met Bob.")
+	err := g.AddEpisode(context.Background(), "group-1", "Ep1", "Alice met Bob.", "")
 	
 	assert.NoError(t, err)
 	// ... existing test content ...
@@ -141,7 +141,7 @@ func TestAddEpisode_Deduplication(t *testing.T) {
 		Summary: config.SummaryPrompts{Nodes: "qux"},
 	}
 	
-	g := NewGraphiti(mockDriver, mockLLM, &MockEmbedder{}, cfg)
+	g := NewGraphiti(mockDriver, mockLLM, &MockEmbedder{}, nil, cfg)
 	
 	uuidCounter := 0
 	g.UUIDGenerator = func() string {
@@ -150,7 +150,7 @@ func TestAddEpisode_Deduplication(t *testing.T) {
 	}
 	
 	// Add Episode
-	err := g.AddEpisode(context.Background(), "group-1", "Ep2", "Alice is back.")
+	err := g.AddEpisode(context.Background(), "group-1", "Ep2", "Alice is back.", "")
 	assert.NoError(t, err)
 	
 	// Verify Dedupe Logic:
@@ -178,9 +178,9 @@ func TestAddEpisode_ExtractionError(t *testing.T) {
 		Extraction: config.ExtractionPrompts{Nodes: "foo"},
 	}
 	
-	g := NewGraphiti(mockDriver, mockLLM, &MockEmbedder{}, cfg)
+	g := NewGraphiti(mockDriver, mockLLM, &MockEmbedder{}, nil, cfg)
 	
-	err := g.AddEpisode(context.Background(), "group-1", "Ep1", "content")
+	err := g.AddEpisode(context.Background(), "group-1", "Ep1", "content", "")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "extraction failed")
 }

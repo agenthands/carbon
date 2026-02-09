@@ -2,10 +2,10 @@ package dedupe
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	
 	"github.com/agenthands/carbon/internal/config"
+	"github.com/agenthands/carbon/internal/core/common"
 	"github.com/agenthands/carbon/internal/core/model"
 	"github.com/agenthands/carbon/internal/llm"
 )
@@ -30,31 +30,9 @@ func (d *Deduplicator) ResolveDuplicates(ctx context.Context, newNodes []model.E
 		return nil, fmt.Errorf("failed to generate deduplication result: %w", err)
 	}
 
-	// Basic JSON cleanup
-	jsonStr := response
-	start := 0
-	end := len(jsonStr)
-	
-	for i, c := range jsonStr {
-		if c == '{' {
-			start = i
-			break
-		}
-	}
-	for i := len(jsonStr) - 1; i >= 0; i-- {
-		if c := jsonStr[i]; c == '}' {
-			end = i + 1
-			break
-		}
-	}
-	
-	if start < end {
-		jsonStr = jsonStr[start:end]
-	}
-
-	var result model.DeduplicationResult
-	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal dedupe result: %w\nResponse: %s", err, response)
+	result, err := common.ParseJSON[model.DeduplicationResult](response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse deduplication result: %w", err)
 	}
 
 	return result.Duplicates, nil

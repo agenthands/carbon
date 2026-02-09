@@ -49,3 +49,31 @@ func TestDedupeNodes(t *testing.T) {
 	assert.Equal(t, "existing-uuid-1", results[0].OriginalUUID)
 	assert.Equal(t, "new-uuid-1", results[0].DuplicateUUID)
 }
+
+func TestResolveEdgeContradictions(t *testing.T) {
+	mockJSON := `{
+		"contradicted_edge_uuids": ["uuid-1"]
+	}`
+	
+	mockLLM := &MockLLMClient{
+		Response: mockJSON,
+	}
+	
+	cfg := config.DeduplicationPrompts{
+		Edges: "test prompt %s %s",
+	}
+	deduplicator := NewDeduplicator(mockLLM, cfg)
+	ctx := context.Background()
+	
+	newEdgeFact := "Alice moved to SF"
+	existingEdges := []model.EntityEdge{
+		{UUID: "uuid-1", Fact: "Alice lives in Seattle"},
+		{UUID: "uuid-2", Fact: "Alice is a software engineer"},
+	}
+	
+	uuids, err := deduplicator.ResolveEdgeContradictions(ctx, newEdgeFact, existingEdges)
+	
+	assert.NoError(t, err)
+	assert.Len(t, uuids, 1)
+	assert.Equal(t, "uuid-1", uuids[0])
+}

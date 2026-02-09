@@ -23,10 +23,9 @@ func TestSearch(t *testing.T) {
 	
 	cfg := &config.Config{
 		Extraction: config.ExtractionPrompts{Nodes: "foo", Edges: "bar"},
-		Deduplication: config.DeduplicationPrompts{Nodes: "baz"},
 		Summary: config.SummaryPrompts{Nodes: "qux"},
 	}
-	g := NewGraphiti(mockDriver, &MockLLM{}, mockEmbedder, cfg)
+	g := NewGraphiti(mockDriver, &MockLLM{}, mockEmbedder, nil, cfg)
 	
 	ctx := context.Background()
 	groupID := "test-group"
@@ -54,7 +53,7 @@ func TestSearch_Error(t *testing.T) {
 	}
 	
 	cfg := &config.Config{}
-	g := NewGraphiti(mockDriver, &MockLLM{}, &MockEmbedder{}, cfg)
+	g := NewGraphiti(mockDriver, &MockLLM{}, &MockEmbedder{}, nil, cfg)
 	
 	_, err := g.Search(context.Background(), "g1", "query")
 	assert.Error(t, err)
@@ -63,7 +62,7 @@ func TestSearch_Error(t *testing.T) {
 
 func TestBuildIndices(t *testing.T) {
 	mockDriver := &MockDriver{}
-	g := NewGraphiti(mockDriver, &MockLLM{}, &MockEmbedder{}, &config.Config{})
+	g := NewGraphiti(mockDriver, &MockLLM{}, &MockEmbedder{}, nil, &config.Config{})
 	
 	err := g.BuildIndices(context.Background())
 	assert.NoError(t, err)
@@ -73,7 +72,7 @@ func TestSaveEntityNode(t *testing.T) {
 	mockDriver := &MockDriver{}
 	mockEmbedder := &MockEmbedder{Vector: []float32{1.0, 2.0}}
 	
-	g := NewGraphiti(mockDriver, &MockLLM{}, mockEmbedder, &config.Config{})
+	g := NewGraphiti(mockDriver, &MockLLM{}, mockEmbedder, nil, &config.Config{})
 	
 	node, err := g.SaveEntityNode(context.Background(), "EntityName", "Group1", "Summary")
 	assert.NoError(t, err)

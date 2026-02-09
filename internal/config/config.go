@@ -14,10 +14,13 @@ type ExtractionPrompts struct {
 
 type DeduplicationPrompts struct {
 	Nodes string `toml:"nodes"`
+	Edges string `toml:"edges"`
 }
 
 type SummaryPrompts struct {
-	Nodes string `toml:"nodes"`
+	Nodes         string `toml:"nodes"`
+	Communities   string `toml:"communities"`
+	CommunityName string `toml:"community_name"`
 }
 
 type LLMConfig struct {
@@ -34,12 +37,18 @@ type MemgraphConfig struct {
 	Password string `toml:"password"`
 }
 
+type ConcurrencyConfig struct {
+	BulkIngest int `toml:"bulk_ingest"`
+	BulkSearch int `toml:"bulk_search"`
+}
+
 type Config struct {
 	LLM           LLMConfig            `toml:"llm"`
 	Memgraph      MemgraphConfig       `toml:"memgraph"`
 	Extraction    ExtractionPrompts    `toml:"extraction"`
 	Deduplication DeduplicationPrompts `toml:"deduplication"`
 	Summary       SummaryPrompts       `toml:"summary"`
+	Concurrency   ConcurrencyConfig    `toml:"concurrency"`
 }
 
 func Load(path string) (*Config, error) {

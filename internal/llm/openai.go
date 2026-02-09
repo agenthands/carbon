@@ -8,8 +8,8 @@ import (
 )
 
 type OpenAIClient struct {
-	client *openai.Client
-	model  string
+	client         *openai.Client
+	model          string
 	embeddingModel string
 }
 
@@ -20,8 +20,8 @@ func NewOpenAIClient(apiKey string, model string, embeddingModel string, baseURL
 	}
 	client := openai.NewClientWithConfig(config)
 	return &OpenAIClient{
-		client: client,
-		model:  model,
+		client:         client,
+		model:          model,
 		embeddingModel: embeddingModel,
 	}
 }
@@ -40,6 +40,16 @@ func (c *OpenAIClient) Generate(ctx context.Context, prompt string) (string, err
 	if err != nil {
 		return "", err
 	}
+
+	// Log Token Usage
+	usage := resp.Usage
+	if usage.TotalTokens > 0 {
+		// Using standard log for simple monitoring as requested
+		// In production, this should be structured logging (slog/zap)
+		fmt.Printf("LLM Usage: model=%s prompt=%d completion=%d total=%d\n",
+			c.model, usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
+	}
+
 	if len(resp.Choices) > 0 {
 		return resp.Choices[0].Message.Content, nil
 	}
@@ -59,6 +69,14 @@ func (c *OpenAIClient) Embed(ctx context.Context, text string) ([]float32, error
 	if err != nil {
 		return nil, err
 	}
+
+	// Log Token Usage
+	usage := resp.Usage
+	if usage.TotalTokens > 0 {
+		fmt.Printf("LLM Usage (Embedding): model=%s prompt=%d total=%d\n",
+			model, usage.PromptTokens, usage.TotalTokens)
+	}
+
 	if len(resp.Data) > 0 {
 		return resp.Data[0].Embedding, nil
 	}

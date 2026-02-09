@@ -40,3 +40,10 @@ type SagaNode struct {
 	GroupID   string    `json:"group_id"`
 	CreatedAt time.Time `json:"created_at"`
 }
+
+type EpisodeData struct {
+	Content string `json:"content"`
+	Saga    string `json:"saga,omitempty"`
+	Schema  string `json:"schema,omitempty"`
+	Source  string `json:"source,omitempty"`
+}

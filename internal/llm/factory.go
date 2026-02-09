@@ -27,10 +27,22 @@ func NewClient(ctx context.Context, cfg config.LLMConfig) (LLMClient, EmbedderCl
 		return c, nil, nil // Return nil for EmbedderClient so application knows it's not supported
 	
 	case "ollama":
-		c, err := NewOllamaClient(cfg.Model, cfg.BaseURL)
-		if err != nil {
-			return nil, nil, err
+		// Switch to OpenAI-compatible client for Ollama to enable usage tracking
+		baseURL := cfg.BaseURL
+		if !strings.HasSuffix(baseURL, "/v1") {
+			baseURL = fmt.Sprintf("%s/v1", strings.TrimRight(baseURL, "/"))
 		}
+		
+		fmt.Printf("Initializing Ollama via OpenAI-compatible API at %s (enables usage tracking)\n", baseURL)
+		
+		// Create OpenAI client pointing to Ollama
+		// Note: API Key is ignored by Ollama but required by client config (can be dummy)
+		apiKey := cfg.APIKey
+		if apiKey == "" {
+			apiKey = "ollama" // Dummy key
+		}
+		
+		c := NewOpenAIClient(apiKey, cfg.Model, cfg.EmbeddingModel, baseURL)
 		return c, c, nil
 		
 	default:

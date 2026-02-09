@@ -6,9 +6,14 @@ base_url = "http://localhost:11434"
 # embedding_model = "nomic-embed-text" # Optional: specify different model for embeddings
 
 [memgraph]
-uri = "bolt://127.0.0.1:7687"
+uri = "bolt://memgraph:7687"
 user = "" # default
 # password = "" # set via env var MEMGRAPH_PASSWORD
+
+[concurrency]
+# Controls parallel execution for improved throughput
+bulk_ingest = 5
+bulk_search = 10
 
 [extraction]
 nodes = """
@@ -21,14 +26,24 @@ nodes = """
 </CURRENT MESSAGE>
 
 Instructions:
-Extract entities mentioned in the CURRENT MESSAGE.
+Extract entities mentioned in the CURRENT MESSAGE based on the ENTITY TYPES schema.
 Return the result as a JSON object with a key "extracted_entities" which is a list of objects.
-Each object should have "name" (string) and "entity_type_id" (int).
+Each object should have:
+- "name" (string)
+- "entity_type_id" (int)
+- "attributes" (dictionary, optional): Extract any relevant attributes or properties defined in the schema or implied by context.
 
 Example JSON:
 {
   "extracted_entities": [
-    {"name": "John Doe", "entity_type_id": 1}
+    {
+      "name": "John Doe", 
+      "entity_type_id": 1,
+      "attributes": {
+        "age": 30,
+        "occupation": "Engineer"
+      }
+    }
   ]
 }
 """
@@ -91,5 +106,35 @@ Return the result as a JSON object with a single key "summary" (string).
 Example JSON:
 {
   "summary": "Alice is a software engineer living in Paris."
+}
+"""
+
+communities = """
+<COMMUNITY NODES>
+%s
+</COMMUNITY NODES>
+
+Instructions:
+Summarize the key information about this group of entities.
+Return the result as a JSON object with a single key "summary" (string).
+
+Example JSON:
+{
+  "summary": "High-level summary of the community."
+}
+"""
+
+community_name = """
+<COMMUNITY SUMMARY>
+%s
+</COMMUNITY SUMMARY>
+
+Instructions:
+Generate a short, descriptive name for this community based on its summary.
+Return the result as a JSON object with a single key "name" (string).
+
+Example JSON:
+{
+  "name": "Software Engineering Team"
 }
 """

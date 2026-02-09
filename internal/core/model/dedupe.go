@@ -9,3 +9,7 @@ type DuplicatePair struct {
 type DeduplicationResult struct {
 	Duplicates []DuplicatePair `json:"duplicates"`
 }
+
+type ContradictionResult struct {
+	ContradictedEdgeUUIDs []string `json:"contradicted_edge_uuids"`
+}

@@ -89,3 +89,7 @@ Send a GET request to `/search?q=query` to retrieve relevant entities and summar
 See the [docs/](docs/) directory for detailed planning and walkthrough documents:
 - [Implementation Plan](docs/implementation_plan.md)
 - [Walkthrough](docs/walkthrough.md)
+
+## Deployment
+
+For staging and production deployment instructions using Docker, see [README_DEPLOY.md](README_DEPLOY.md).

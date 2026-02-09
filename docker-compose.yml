@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  memgraph:
+    image: memgraph/memgraph-mage:latest
+    ports:
+      - "7687:7687"
+      - "7444:7444"
+    environment:
+      - MEMGRAPH_PASSWORD=password
+    volumes:
+      - memgraph_lib:/var/lib/memgraph
+      - memgraph_log:/var/log/memgraph
+      - memgraph_etc:/etc/memgraph
+    restart: unless-stopped
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - MEMGRAPH_URI=bolt://memgraph:7687
+      - MEMGRAPH_PASSWORD=password
+      - LLM_PROVIDER=ollama
+      - LLM_API_KEY=ollama
+      - LLM_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - memgraph
+    restart: unless-stopped
+    volumes:
+      - ./config:/app/config:ro
+
+volumes:
+  memgraph_lib:
+  memgraph_log:
+  memgraph_etc:

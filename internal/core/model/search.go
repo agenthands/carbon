@@ -8,3 +8,8 @@ type SearchResult struct {
 	VectorScore float64  `json:"vector_score,omitempty"`
 	TextScore   float64  `json:"text_score,omitempty"`
 }
+
+type BulkSearchQuery struct {
+	QueryID string `json:"query_id"`
+	Query   string `json:"query"`
+}

@@ -11,3 +11,7 @@ type LLMClient interface {
 type EmbedderClient interface {
 	Embed(ctx context.Context, text string) ([]float32, error)
 }
+
+type RerankerClient interface {
+	Rank(ctx context.Context, query string, documents []string) ([]int, error)
+}
